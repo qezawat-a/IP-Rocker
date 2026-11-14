@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix (e.g. 1.5.0)
+        required: true
+        default: 1.8.0
+
+permissions:
+  contents: write
+
+jobs:
+  cli:
+    uses: ./.github/workflows/build-cli.yml
+    with:
+      version: ${{ inputs.version || github.ref_name }}
+
+  android:
+    uses: ./.github/workflows/build-android.yml
+    with:
+      version: ${{ inputs.version || github.ref_name }}
+    secrets: inherit
+
+  publish:
+    needs: [cli, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Flatten downloaded artifacts
+        shell: bash
+        run: |
+          # Each build workflow wraps its outputs in a release-artifacts/ folder,
+          # and merge-multiple keeps that nested path. Pull every file up to the
+          # top level so the publish glob sees files, not directories.
+          find release-assets -mindepth 2 -type f -print0 | while IFS= read -r -d '' f; do
+            mv "$f" "release-assets/$(basename "$f")"
+          done
+          find release-assets -mindepth 1 -type d -empty -delete || true
+          echo "=== release-assets contents ==="
+          ls -R release-assets
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        shell: bash
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Resolve the tag inline (no sibling-job output) so a re-run of only
+          # this job still computes a valid tag_name. Dispatch passes version
+          # without the v; a pushed tag falls back to github.ref_name.
+          tag_name: ${{ inputs.version && format('v.{0}', inputs.version) || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: IP-ROCKER ${{ inputs.version && format('v.{0}', inputs.version) || github.ref_name }}
+          generate_release_notes: true
+          allowUpdates: true
+          fail_on_unmatched_files: true
+          files: release-assets/*

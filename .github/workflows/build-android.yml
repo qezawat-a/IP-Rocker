@@ -1,0 +1,137 @@
+name: Build Android
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: false
+        type: string
+        default: 1.0.0
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        default: 1.0.0
+  pull_request:
+    paths:
+      - "android/**"
+      - "mobile/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ inputs.version || github.event.inputs.version || '1.0.0' }}
+      ANDROID_VERSION_NAME: ${{ inputs.version || github.event.inputs.version || '1.0.0' }}
+      ANDROID_VERSION_CODE: "10000"
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # gomobile@latest now requires Go >= 1.25; the module still targets 1.24
+          # but the toolchain must be 1.25+ to install/bind it.
+          go-version: '1.25'
+          cache: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;29.0.14206865"
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Verify Android SDK tools
+        shell: bash
+        run: |
+          command -v sdkmanager
+          sdkmanager --version
+          test -d "$ANDROID_SDK_ROOT/platforms/android-35"
+          test -d "$ANDROID_SDK_ROOT/build-tools/35.0.0"
+          test -d "$ANDROID_SDK_ROOT/ndk/29.0.14206865"
+          # gomobile looks up the NDK via ANDROID_NDK_HOME when binding for Android.
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Build Go mobile bridge
+        shell: bash
+        # Let Go fetch a newer toolchain if a future gomobile release requires it.
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          gomobile init
+          chmod +x android/build_aar.sh
+          android/build_aar.sh
+
+      - name: Prepare Android signing
+        shell: bash
+        env:
+          SECRET_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SECRET_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SECRET_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p android/keystore
+          if [[ -n "$KEYSTORE_BASE64" && -n "$SECRET_STORE_PASSWORD" && -n "$SECRET_KEY_ALIAS" && -n "$SECRET_KEY_PASSWORD" ]]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/keystore/release.keystore
+            store_password="$SECRET_STORE_PASSWORD"
+            key_alias="$SECRET_KEY_ALIAS"
+            key_password="$SECRET_KEY_PASSWORD"
+          else
+            store_password="iprocker-ci-1.0.0"
+            key_alias="iprocker-ci"
+            key_password="iprocker-ci-1.0.0"
+            keytool -genkeypair -noprompt -keystore android/keystore/release.keystore \
+              -storepass "$store_password" -alias "$key_alias" -keypass "$key_password" \
+              -keyalg RSA -keysize 3072 -validity 3650 -dname "CN=IP-ROCKER CI,O=IP-ROCKER,C=IR"
+            echo "::warning::Android signing secrets are missing; artifacts use an ephemeral CI key and cannot upgrade a Play Store build."
+          fi
+          {
+            echo "ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD=$store_password"
+            echo "ORG_GRADLE_PROJECT_KEY_ALIAS=$key_alias"
+            echo "ORG_GRADLE_PROJECT_KEY_PASSWORD=$key_password"
+          } >> "$GITHUB_ENV"
+
+      - name: Lint, test, and build Android APKs
+        working-directory: android
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace clean assembleDebug assembleRelease
+
+      - name: Prepare Android artifacts
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          find android/app/build/outputs/apk/release -name '*.apk' -print0 | while IFS= read -r -d '' apk; do
+            abi="$(basename "$apk" | sed -E 's/^app-(.*)-release\.apk$/\1/')"
+            cp "$apk" "release-artifacts/IP-ROCKER-${VERSION}-android-${abi}.apk"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: release-artifacts/*
+          if-no-files-found: error
+          retention-days: 14
