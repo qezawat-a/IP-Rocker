@@ -3,6 +3,7 @@ package score
 
 import (
 	"math"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -127,7 +128,7 @@ func Evaluate(r *probe.Result, c Criteria) *Candidate {
 		Port:    r.Port,
 		Verdict: "unknown",
 	}
-	cand.Endpoint = cand.IP + ":" + strconv.Itoa(cand.Port)
+	cand.Endpoint = net.JoinHostPort(cand.IP, strconv.Itoa(cand.Port))
 
 	stats := summarise(r)
 	cand.AvgLatency = stats.avg
@@ -178,7 +179,7 @@ func Evaluate(r *probe.Result, c Criteria) *Candidate {
 	// DownloadKBps stays zero through no fault of the edge. Penalising a zero
 	// that means "not measured" the same way as a zero that means "too slow"
 	// rejects good edges purely because speed.cloudflare.com was unreachable.
-	if stats.downloadTested && stats.downloadBps <= 0 {
+	if stats.downloadTested && stats.downloadBps <= 0 && !stats.downloadEndpointUnavailable {
 		cand.Healthy = false
 		cand.Notes = append(cand.Notes, "download test failed")
 	}
@@ -296,6 +297,9 @@ func summarise(r *probe.Result) stats {
 		}
 		if a.HeldOpen {
 			s.held = true
+			s.holdTested = true
+		}
+		if a.HoldTested {
 			s.holdTested = true
 		}
 		if a.Err == "connection was reset during idle hold" {

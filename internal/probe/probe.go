@@ -165,6 +165,9 @@ type Attempt struct {
 	// HeldOpen is true when the idle-hold check passed, proving the connection
 	// was not reset after the first successful request.
 	HeldOpen bool
+	// HoldTested is true when the idle-hold check was attempted, so a failed
+	// hold is visible to strict mode (RequireHold) instead of being ignored.
+	HoldTested bool
 	// WSOk is true when the WebSocket upgrade succeeded.
 	WSOk bool
 
@@ -396,6 +399,7 @@ func probeHTTP(ctx context.Context, ip net.IP, sni string, cfg Config) Attempt {
 	// edges for no reason. RequireHard still disqualifies failing edges when
 	// the user opts in via strict mode.
 	if cfg.HoldDuration > 0 {
+		att.HoldTested = true
 		att.HeldOpen = holdCheck(ctx, ip, sni, cfg)
 	}
 
@@ -653,7 +657,7 @@ func LongTest(ctx context.Context, ip net.IP, sni, host string, cfg Config) Long
 		// Anything under 1 MB/s sustained across a 256 KB chunk is a
 		// filter-side throttle — a healthy edge does not move that slowly.
 		// Track stalls but keep going: one slow round is not proof, three is.
-		if int64(rdDur) > 0 && n*int64(time.Second)/int64(rdDur) < 1<<20 {
+		if int64(rdDur) > 0 && n*int64(time.Second)/int64(rdDur) < 256<<10 {
 			stalls++
 			if stalls >= 3 {
 				return LongResult{Bytes: total, Duration: time.Since(start), Err: "sustained stall (filter throttle)"}

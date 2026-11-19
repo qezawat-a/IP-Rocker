@@ -498,6 +498,21 @@ fun SettingsSheet(
             Spacer(Modifier.height(12.dp))
 
             RockerCard {
+                SectionLabel("Address family")
+                Spacer(Modifier.height(4.dp))
+                SettingToggle(
+                    title = "IPv6",
+                    subtitle = "Scan Cloudflare's IPv6 blocks instead of IPv4. Random " +
+                        "sampling rarely hits a live IPv6 edge, so add prefixes you " +
+                        "know below for useful results.",
+                    checked = settings.ipv6,
+                    onCheckedChange = { v -> onChange { it.copy(ipv6 = v) } },
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            RockerCard {
                 SectionLabel("Custom ranges")
                 Spacer(Modifier.height(4.dp))
                 Text(

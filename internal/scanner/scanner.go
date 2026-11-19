@@ -113,8 +113,10 @@ func (o Options) WithDefaults() Options {
 	if o.NeighborMax <= 0 {
 		o.NeighborMax = 300
 	}
-	// Scans are IPv4-only; the IPv6 space is not supported.
-	o.Ranges.IPv4 = true
+	// The address family is chosen by the caller (Ranges.IPv4 / Ranges.IPv6).
+	if !o.Ranges.IPv4 && !o.Ranges.IPv6 {
+		o.Ranges.IPv4 = true // default family when the caller chose none
+	}
 	if o.Criteria.Weights == (score.Weights{}) {
 		o.Criteria = score.DefaultCriteria()
 	}
@@ -141,6 +143,9 @@ type Report struct {
 	// ReputationError is non-empty when reputation lookups were requested but
 	// the provider could not be reached, so the results are not reputation-verified.
 	ReputationError string
+	// Answered is every candidate that answered, before the TopN cut. Phase 1
+	// exports read it; Candidates holds only the Phase 2 picks when TopN is set.
+	Answered []*score.Candidate
 }
 
 // Clean returns only the candidates that passed every requirement.
@@ -221,7 +226,14 @@ func (s *Scanner) Run(ctx context.Context) (*Report, error) {
 	// allocates working edges in contiguous runs.
 	if len(hitIPs) > 0 && s.opts.NeighborMax > 0 && ctx.Err() == nil {
 		var neighbors []net.IP
-		seen := make(map[string]struct{}, len(hitIPs))
+		seen := make(map[string]struct{}, len(results))
+		// Seed with every address pass 1 already probed, not only the hits, so a
+		// neighbour that failed once is not probed again and reported twice.
+		mu.Lock()
+		for _, r := range results {
+			seen[r.IP.String()] = struct{}{}
+		}
+		mu.Unlock()
 		for _, ip := range hitIPs {
 			seen[ip.String()] = struct{}{}
 		}
@@ -289,14 +301,19 @@ func (s *Scanner) Run(ctx context.Context) (*Report, error) {
 	// passed every enabled requirement. Never use rejected/timed-out candidates
 	// as padding when fewer than TopN usable edges exist; a smaller clean list is
 	// more truthful than a Top 10 containing failed edges.
-	cands = phase2Top(cands, s.opts.TopN)
+	// Keep every candidate that answered before reputation and TopN touch the list.
+	answered := append([]*score.Candidate(nil), cands...)
 
 	// Reputation enrichment is best-effort and never fails the scan: a provider
 	// outage sets Report.ReputationError so the UI can say "not verified clean".
 	var repErr string
 	if s.opts.Reputation {
-		repErr = s.enrichReputation(ctx, cands)
+		repErr = s.enrichReputation(ctx, healthyPool(cands, reputationPool))
+		// Strict mode can demote candidates here, so re-rank before TopN is cut.
+		score.Rank(cands)
 	}
+
+	cands = phase2Top(cands, s.opts.TopN)
 
 	s.report(Progress{Phase: PhaseDone, Tested: s.tested.Load(), Hits: s.hits.Load()})
 
@@ -306,7 +323,26 @@ func (s *Scanner) Run(ctx context.Context) (*Report, error) {
 		Hits:            s.hits.Load(),
 		Duration:        time.Since(start),
 		ReputationError: repErr,
+		Answered:        answered,
 	}, nil
+}
+
+// reputationPool caps how many of the best healthy candidates get a reputation
+// lookup. Each lookup is a request, so the pool is bounded.
+const reputationPool = 300
+
+// healthyPool returns up to max of the best healthy candidates, preserving order.
+func healthyPool(cands []*score.Candidate, max int) []*score.Candidate {
+	pool := make([]*score.Candidate, 0, max)
+	for _, c := range cands {
+		if c.Healthy {
+			pool = append(pool, c)
+			if len(pool) >= max {
+				break
+			}
+		}
+	}
+	return pool
 }
 
 // phase2Top returns the highest-ranked healthy candidates. The input is already
@@ -491,13 +527,17 @@ func (s *Scanner) enrichReputation(ctx context.Context, cands []*score.Candidate
 		cand *score.Candidate
 		info *reputation.Info
 	}
+	sem := make(chan struct{}, 6) // at most 6 reputation lookups in flight
 	ch := make(chan result, len(cands))
 	var wg sync.WaitGroup
 	for _, c := range cands {
 		wg.Add(1)
 		go func(c *score.Candidate) {
 			defer wg.Done()
-			ch <- result{cand: c, info: reputation.Lookup(ctx, c.IP)}
+			sem <- struct{}{}
+			info := reputation.Lookup(ctx, c.IP)
+			<-sem
+			ch <- result{cand: c, info: info}
 		}(c)
 	}
 	go func() {

@@ -46,6 +46,7 @@ type ProgressListener interface {
 // ScanRequest is built field by field from Kotlin, because gomobile cannot pass
 // a struct literal across the boundary.
 type ScanRequest struct {
+	ipv6 bool
 	count          int32
 	concurrency    int32
 	port           int32
@@ -121,6 +122,7 @@ func (r *ScanRequest) SetRequireWebSocket(v bool) { r.requireWS = v }
 func (r *ScanRequest) SetStrict(v bool)           { r.strict = v }
 func (r *ScanRequest) SetTopN(v int32)            { r.topN = v }
 func (r *ScanRequest) SetExportMode(v string)     { r.exportMode = v }
+func (r *ScanRequest) SetIPv6(v bool) { r.ipv6 = v }
 func (r *ScanRequest) SetImportMode(v string)     { r.importMode = v }
 func (r *ScanRequest) SetExtraCIDRs(v string)     { r.extraCIDRs = v }
 func (r *ScanRequest) SetOnlyExtra(v bool)        { r.onlyExtra = v }
@@ -329,12 +331,19 @@ func (r *ScanRequest) toOptions(listener ProgressListener) (scanner.Options, err
 		}
 		// A bare IP is treated as a /32 so a pasted ip list still scans.
 		if net.ParseIP(c) != nil {
-			c += "/32"
+			if ip := net.ParseIP(c); ip != nil && ip.To4() == nil {
+				c += "/128"
+			} else {
+				c += "/32"
+			}
 		}
 		extra = append(extra, c)
 	}
 
 	opts := scanner.Options{
+		// Reputation is part of every app scan (see README). The app has no
+		// separate toggle yet, so it runs by default; strict mode relies on it.
+		Reputation: true,
 		Count:       int(r.count),
 		Concurrency: int(r.concurrency),
 		Ports:       ports,
@@ -363,6 +372,9 @@ func (r *ScanRequest) toOptions(listener ProgressListener) (scanner.Options, err
 		TopN:       int(r.topN),
 		ExportMode: r.exportMode,
 	}
+
+	opts.Ranges.IPv4 = !r.ipv6
+	opts.Ranges.IPv6 = r.ipv6
 
 	if listener != nil {
 		// Progress arrives from many goroutines at once; throttle it so the UI
@@ -400,6 +412,7 @@ func reportPayload(r *scanner.Report) map[string]any {
 		"duration_ms": r.Duration.Milliseconds(),
 		"candidates":  r.Candidates,
 		"clean_count": len(r.Clean()),
+		"answered":    r.Answered,
 	}
 }
 

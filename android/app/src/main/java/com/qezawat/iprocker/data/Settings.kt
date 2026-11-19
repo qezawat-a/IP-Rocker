@@ -53,6 +53,8 @@ data class ScanSettings(
 
     val customRanges: String = "",
     val onlyCustomRanges: Boolean = false,
+    /** Scan Cloudflare's IPv6 blocks instead of IPv4. */
+    val ipv6: Boolean = false,
 
     /**
      * How many of the best candidates to keep for the report and export, mirroring
@@ -194,6 +196,7 @@ class SettingsRepository(private val context: Context) {
             requireWebSocket = p[Keys.REQUIRE_WS] ?: d.requireWebSocket,
             customRanges = p[Keys.CUSTOM_RANGES] ?: d.customRanges,
             onlyCustomRanges = p[Keys.ONLY_CUSTOM] ?: d.onlyCustomRanges,
+            ipv6 = p[Keys.IPV6] ?: d.ipv6,
             topN = p[Keys.TOP_N] ?: d.topN,
             exportMode = p[Keys.EXPORT_MODE] ?: d.exportMode,
             importMode = p[Keys.IMPORT_MODE] ?: d.importMode,
@@ -226,6 +229,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.REQUIRE_WS] = s.requireWebSocket
             p[Keys.CUSTOM_RANGES] = s.customRanges
             p[Keys.ONLY_CUSTOM] = s.onlyCustomRanges
+            p[Keys.IPV6] = s.ipv6
             p[Keys.TOP_N] = s.topN
             p[Keys.EXPORT_MODE] = s.exportMode
             p[Keys.IMPORT_MODE] = s.importMode
@@ -257,6 +261,7 @@ class SettingsRepository(private val context: Context) {
         val REQUIRE_WS = booleanPreferencesKey("require_ws")
         val CUSTOM_RANGES = stringPreferencesKey("custom_ranges")
         val ONLY_CUSTOM = booleanPreferencesKey("only_custom")
+        val IPV6 = booleanPreferencesKey("ipv6")
         val TOP_N = intPreferencesKey("top_n")
         val EXPORT_MODE = stringPreferencesKey("export_mode")
         val IMPORT_MODE = stringPreferencesKey("import_mode")

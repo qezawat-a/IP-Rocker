@@ -57,7 +57,7 @@ data class UiState(
             // contains zero retained candidates after Phase 2 eligibility checks.
             // Falling back to liveHits here made rejected provisional results look
             // usable after the scan finished.
-            val source = if (r == null) liveHits else r.candidates
+            val source = if (r == null) liveHits else if (filter == ResultFilter.FLAGGED && r.answered.isNotEmpty()) r.answered else r.candidates
             val sorted = source.sortedByDescending { it.score }
             return when (filter) {
                 ResultFilter.USABLE -> sorted.filter { it.healthy }
@@ -231,8 +231,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         // report is absent OR its candidate list is empty (e.g. scan
         // phase timed out after probing found hundreds of addresses).
         val source: List<Candidate> = when {
-            report != null && report.candidates.isNotEmpty() ->
-                if (mode == "working") report.clean else report.candidates
+            report != null ->
+                if (mode == "working") report.clean else report.answered.ifEmpty { report.candidates }
             live.isNotEmpty() ->
                 live.filter { if (mode == "working") it.healthy else true }
                     .sortedByDescending { it.score }

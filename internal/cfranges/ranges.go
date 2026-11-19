@@ -40,6 +40,19 @@ type Block struct {
 // It is exposed (and named) for callers that want to inspect the built-in set.
 var V4Blocks = loadDefaultBlocks()
 
+// V6Blocks is Cloudflare's published IPv6 space (cloudflare.com/ips-v6). Edges
+// sit in sparse sub-prefixes, so uniform sampling inside these blocks rarely
+// hits a live address; pair IPv6 scans with prefixes already known to work.
+var V6Blocks = []Block{
+	{CIDR: "2400:cb00::/32", Weight: 1.0},
+	{CIDR: "2606:4700::/32", Weight: 1.0},
+	{CIDR: "2803:f800::/32", Weight: 1.0},
+	{CIDR: "2405:b500::/32", Weight: 1.0},
+	{CIDR: "2405:8100::/32", Weight: 1.0},
+	{CIDR: "2a06:98c0::/29", Weight: 1.0},
+	{CIDR: "2c0f:f248::/32", Weight: 1.0},
+}
+
 func loadDefaultBlocks() []Block {
 	out := make([]Block, 0, 5000)
 	for _, line := range strings.Split(defaultRanges, "\n") {
@@ -78,6 +91,8 @@ type Source struct {
 // Options configures a Source.
 type Options struct {
 	IPv4 bool
+	// IPv6 adds the built-in Cloudflare IPv6 blocks (V6Blocks) to the pool.
+	IPv6 bool
 	// ExtraCIDRs are added to the pool with neutral weight.
 	ExtraCIDRs []string
 	// OnlyExtra treats ExtraCIDRs as the entire scan scope, ignoring the
@@ -157,6 +172,13 @@ func NewSource(opts Options) (*Source, error) {
 				if err := add(b); err != nil {
 					return nil, err
 				}
+			}
+		}
+	}
+	if opts.IPv6 && !opts.OnlyExtra {
+		for _, b := range V6Blocks {
+			if err := add(b); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -306,6 +328,13 @@ func randomInNet(n *net.IPNet, rng *rand.Rand) net.IP {
 		base := binary.BigEndian.Uint32(ip4)
 		mask := binary.BigEndian.Uint32(net.IP(n.Mask).To4())
 		host := rng.Uint32() & ^mask
+		if ^mask == 0 {
+			// A /32 holds exactly one address. Return it rather than setting a
+			// host bit, which would land on a neighbour outside the block.
+			only := make(net.IP, 4)
+			binary.BigEndian.PutUint32(only, base)
+			return only
+		}
 		// Avoid .0 and .255 host bytes; Cloudflare does not serve them and
 		// probing them just burns budget.
 		if host&0xFF == 0 {
@@ -327,7 +356,7 @@ func randomInNet(n *net.IPNet, rng *rand.Rand) net.IP {
 
 func pow2(n int) float64 {
 	f := 1.0
-	for i := 0; i < n && i < 62; i++ {
+	for i := 0; i < n && i < 128; i++ {
 		f *= 2
 	}
 	return f

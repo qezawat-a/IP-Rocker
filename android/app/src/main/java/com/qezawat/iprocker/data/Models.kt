@@ -32,7 +32,7 @@ data class Candidate(
     val healthy: Boolean = false,
     val notes: List<String> = emptyList(),
 ) {
-    val endpoint: String get() = "$ip:$port"
+    val endpoint: String get() = if (ip.contains(':')) "[$ip]:$port" else "$ip:$port"
 
     val headline: String
         get() = when {
@@ -47,6 +47,8 @@ data class ScanReport(
     val hits: Long = 0,
     @SerialName("duration_ms") val durationMs: Long = 0,
     val candidates: List<Candidate> = emptyList(),
+    /** Every candidate that answered, before the Top N cut (Phase 1). */
+    val answered: List<Candidate> = emptyList(),
 ) {
     val clean: List<Candidate> get() = candidates.filter { it.healthy }
     val cleanCount: Int get() = clean.size

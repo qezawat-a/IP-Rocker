@@ -78,6 +78,7 @@ class ScannerBridge {
         req.setExportMode(settings.exportMode)
         req.setImportMode(settings.importMode)
         req.setOnlyExtra(settings.onlyCustomRanges)
+        req.setIPv6(settings.ipv6)
         req.setExtraCIDRs(settings.customRanges)
 
         var applied: String? = null
