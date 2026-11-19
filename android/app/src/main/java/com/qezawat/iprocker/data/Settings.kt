@@ -52,6 +52,8 @@ data class ScanSettings(
     val requireWebSocket: Boolean = false,
 
     val customRanges: String = "",
+    /** Extra hostnames whose AAAA records seed an IPv6 scan, on top of the built-in list. */
+    val extraDomains: String = "",
     val onlyCustomRanges: Boolean = false,
     /** Scan Cloudflare's IPv6 blocks instead of IPv4. */
     val ipv6: Boolean = false,
@@ -195,6 +197,7 @@ class SettingsRepository(private val context: Context) {
             wsPath = p[Keys.WS_PATH] ?: d.wsPath,
             requireWebSocket = p[Keys.REQUIRE_WS] ?: d.requireWebSocket,
             customRanges = p[Keys.CUSTOM_RANGES] ?: d.customRanges,
+            extraDomains = p[Keys.EXTRA_DOMAINS] ?: d.extraDomains,
             onlyCustomRanges = p[Keys.ONLY_CUSTOM] ?: d.onlyCustomRanges,
             ipv6 = p[Keys.IPV6] ?: d.ipv6,
             topN = p[Keys.TOP_N] ?: d.topN,
@@ -228,6 +231,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.WS_PATH] = s.wsPath
             p[Keys.REQUIRE_WS] = s.requireWebSocket
             p[Keys.CUSTOM_RANGES] = s.customRanges
+            p[Keys.EXTRA_DOMAINS] = s.extraDomains
             p[Keys.ONLY_CUSTOM] = s.onlyCustomRanges
             p[Keys.IPV6] = s.ipv6
             p[Keys.TOP_N] = s.topN
@@ -260,6 +264,7 @@ class SettingsRepository(private val context: Context) {
         val WS_PATH = stringPreferencesKey("ws_path")
         val REQUIRE_WS = booleanPreferencesKey("require_ws")
         val CUSTOM_RANGES = stringPreferencesKey("custom_ranges")
+        val EXTRA_DOMAINS = stringPreferencesKey("extra_domains")
         val ONLY_CUSTOM = booleanPreferencesKey("only_custom")
         val IPV6 = booleanPreferencesKey("ipv6")
         val TOP_N = intPreferencesKey("top_n")

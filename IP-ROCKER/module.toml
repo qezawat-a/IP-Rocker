@@ -1,0 +1,90 @@
+version = 2
+
+[module]
+type = "android-app"
+name = "IP-ROCKER"
+languageLevel = "JAVA_21"
+output = "build/classes"
+
+[sourceSets.androidTest]
+scope = "TEST_IMPLEMENTATION"
+java = ["src/androidTest/golang", "src/androidTest/java", "src/androidTest/kotlin"]
+res = ["src/androidTest/res"]
+resources = ["src/androidTest/resources"]
+
+[sourceSets.buildConfig]
+scope = "IMPLEMENTATION"
+java = ["build/build-config/kotlin"]
+
+[sourceSets.composeResources]
+scope = "IMPLEMENTATION"
+java = ["build/compose-resources/kotlin"]
+resources = ["build/compose-resources/resources"]
+
+[sourceSets.debug]
+scope = "IMPLEMENTATION"
+aidl = ["src/debug/aidl"]
+assets = ["src/debug/assets"]
+java = ["src/debug/golang", "src/debug/java", "src/debug/kotlin"]
+jniLibs = ["src/debug/jniLibs"]
+res = ["src/debug/res"]
+resources = ["src/debug/resources"]
+
+[sourceSets.main]
+scope = "IMPLEMENTATION"
+aidl = ["src/androidMain/aidl", "src/main/aidl"]
+assets = ["src/androidMain/assets", "src/main/assets"]
+java = ["src/androidMain/java", "src/androidMain/kotlin", "src/commonMain/kotlin", "src/main/golang", "src/main/java", "src/main/kotlin"]
+jniLibs = ["src/androidMain/jniLibs", "src/main/jniLibs"]
+res = ["src/androidMain/res", "src/main/res"]
+resources = ["src/androidMain/resources", "src/main/resources"]
+
+[sourceSets.release]
+scope = "IMPLEMENTATION"
+aidl = ["src/release/aidl"]
+assets = ["src/release/assets"]
+java = ["src/release/java", "src/release/kotlin"]
+jniLibs = ["src/release/jniLibs"]
+res = ["src/release/res"]
+resources = ["src/release/resources"]
+
+[sourceSets.test]
+scope = "TEST_IMPLEMENTATION"
+java = ["src/commonTest/kotlin", "src/test/java", "src/test/kotlin"]
+resources = ["src/test/resources"]
+
+[dependencies]
+implementation = ["org.jetbrains.compose.components:components-resources:1.11.1", "gradle-wrapper.jar", "kotlin-stdlib", { platform = "com.google.firebase:firebase-bom:33.7.0" }]
+testImplementation = ["org.jetbrains.kotlin:kotlin-test:2.4.0"]
+
+[android]
+namespace = "com.iprocker.app"
+compileSdk = 36
+minSdk = 26
+targetSdk = 26
+manifest = "src/main/AndroidManifest.xml"
+versionCode = 1
+versionName = "1.0"
+isApplication = true
+manifestPlaceholders = []
+buildConfigFields = []
+buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = true, shrinkResources = true, signingConfig = "iprocker" }, { name = "release", debuggable = true, minifyEnabled = true, shrinkResources = true, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"], signingConfig = "iprocker" }]
+nonTransitiveRClass = true
+serialization = true
+
+[composeResources]
+package = "com.iprocker.app.generated.resources"
+roots = ["src/main/composeResources"]
+
+[kotlin]
+commonSourceRoots = ["src/commonMain/kotlin", "build/compose-resources/kotlin", "build/build-config/kotlin"]
+activeTarget = "android"
+targets = [{ name = "android", platform = "android", type = "android-app", roots = ["src/androidMain/kotlin", "src/androidMain/res|android-res", "src/main/aidl|aidl", "src/main/assets|assets", "src/main/golang", "src/main/java", "src/main/jniLibs|jni-libs", "src/main/kotlin", "src/main/res|android-res", "src/main/resources|resource"], dependencies = ["IMPLEMENTATION lib:org.jetbrains.compose.components:components-resources:1.11.1"], facets = { android = { namespace = "com.iprocker.app", compileSdk = 36, minSdk = 24, targetSdk = 36, manifest = "src/androidMain/AndroidManifest.xml", versionCode = 1, versionName = "1.0", isApplication = true, manifestPlaceholders = [], buildConfigFields = [], buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = false, shrinkResources = false }, { name = "release", debuggable = false, minifyEnabled = false, shrinkResources = false, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"] }], nonTransitiveRClass = false } } }, { name = "jvm", platform = "jvm", type = "java-lib", roots = ["src/desktopMain/kotlin", "src/desktopMain/resources|resource"] }]
+
+[kotlin.shared]
+roots = ["src/commonMain/kotlin"]
+testRoots = ["src/commonTest/kotlin"]
+
+[kotlinBuildConfig]
+package = "com.iprocker.app"
+fields = []

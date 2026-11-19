@@ -502,12 +502,32 @@ fun SettingsSheet(
                 Spacer(Modifier.height(4.dp))
                 SettingToggle(
                     title = "IPv6",
-                    subtitle = "Scan Cloudflare's IPv6 blocks instead of IPv4. Random " +
-                        "sampling rarely hits a live IPv6 edge, so add prefixes you " +
-                        "know below for useful results.",
+                    subtitle = "Scans the IPv6 addresses DNS returns for Cloudflare-hosted " +
+                        "sites, plus anything you add below. Random sampling inside " +
+                        "Cloudflare's IPv6 blocks almost never finds a live edge.",
                     checked = settings.ipv6,
                     onCheckedChange = { v -> onChange { it.copy(ipv6 = v) } },
                 )
+                if (settings.ipv6) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = settings.extraDomains,
+                        onValueChange = { v -> onChange { it.copy(extraDomains = v) } },
+                        label = { Text("Extra domains (optional)") },
+                        placeholder = { Text("mysite.example.com, another.example") },
+                        singleLine = false,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Built in: speed.cloudflare.com, cloudflare.com, one.one.one.one, " +
+                            "www.cloudflare.com. Their AAAA records are read on this phone " +
+                            "when the scan starts. Turn VPN off first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

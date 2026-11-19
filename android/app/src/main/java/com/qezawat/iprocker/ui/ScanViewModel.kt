@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.qezawat.iprocker.data.BlockInfo
+import com.qezawat.iprocker.data.DnsSeed
+import com.qezawat.iprocker.data.NetworkGuard
 import com.qezawat.iprocker.data.Candidate
 import com.qezawat.iprocker.data.ScanReport
 import com.qezawat.iprocker.data.ScanSettings
@@ -158,6 +160,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startScan() {
         if (_state.value.scanning) return
+        if (NetworkGuard.vpnActive(getApplication<Application>())) {
+            _state.update {
+                it.copy(message = "VPN is on. Turn it off and scan again: a scan through a VPN measures the VPN's route, not yours.")
+            }
+            return
+        }
 
         _state.update {
             it.copy(
@@ -176,8 +184,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    val (request, applied) = bridge.buildRequest(_state.value.settings)
+                    val prepared = DnsSeed.prepare(_state.value.settings)
+                    val (request, applied) = bridge.buildRequest(prepared.settings)
                     bridge.start(request)
+                    prepared.note?.let { note ->
+                        _state.update { it.copy(message = note, total = prepared.settings.count) }
+                    }
                     applied
                 }
             }
