@@ -24,3 +24,9 @@ android/keystore/
 .vscode/
 *.iml
 .DS_Store
+build/
+.platform/
+.gradle/
+local.properties
+*.apk
+*.aab
