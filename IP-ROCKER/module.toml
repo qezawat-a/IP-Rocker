@@ -54,7 +54,7 @@ java = ["src/commonTest/kotlin", "src/test/java", "src/test/kotlin"]
 resources = ["src/test/resources"]
 
 [dependencies]
-implementation = ["org.jetbrains.compose.components:components-resources:1.11.1", "gradle-wrapper.jar", "kotlin-stdlib", { platform = "com.google.firebase:firebase-bom:33.7.0" }]
+implementation = ["org.jetbrains.compose.components:components-resources:1.11.1", "gradle-wrapper.jar", "kotlin-stdlib", { platform = "com.google.firebase:firebase-bom:33.7.0" }, "androidx.activity:activity-compose:1.13.0", "androidx.compose.ui:ui:1.11.2", "androidx.room3:room3-runtime:3.0.2"]
 testImplementation = ["org.jetbrains.kotlin:kotlin-test:2.4.0"]
 
 [android]
@@ -70,7 +70,11 @@ manifestPlaceholders = []
 buildConfigFields = []
 buildTypes = [{ name = "debug", debuggable = true, minifyEnabled = true, shrinkResources = true, signingConfig = "iprocker" }, { name = "release", debuggable = true, minifyEnabled = true, shrinkResources = true, proguardFiles = ["proguard-android-optimize.txt", "proguard-rules.pro"], signingConfig = "iprocker" }]
 nonTransitiveRClass = true
+viewBinding = true
+compose = true
+parcelize = true
 serialization = true
+kspProcessors = ["glide", "hilt", "moshi", "room", "room3"]
 
 [composeResources]
 package = "com.iprocker.app.generated.resources"
