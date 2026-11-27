@@ -1,0 +1,8 @@
+{
+    "mcpServers": {
+        "claude": {
+            "type": "http",
+            "url": "https://codeassist-mcp-relay.lucena-tyronscott.workers.dev/c/-BQOuq5pkyKX0fIptvPdBV3H1GR_6kDIOx4uiNOeqbg/mcp"
+        }
+    }
+}
